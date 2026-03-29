@@ -191,6 +191,8 @@ func doRuntimeBootstrap(execCtx *rapidContext, sbInfoFromInit interop.SandboxInf
 	env := sbInfoFromInit.EnvironmentVariables
 	runtimeBootstrap := sbInfoFromInit.RuntimeBootstrap
 	bootstrapCmd, err := runtimeBootstrap.Cmd()
+	log.Infof("doRuntimeBootstrap: cmd=%v", bootstrapCmd)
+	fmt.Printf("DEBUG doRuntimeBootstrap: cmd=%v\n", bootstrapCmd)
 	if err != nil {
 		if fatalError, formattedLog, hasError := runtimeBootstrap.CachedFatalError(err); hasError {
 			appctx.StoreFirstFatalError(execCtx.appCtx, fatalError)

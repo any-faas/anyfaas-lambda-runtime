@@ -103,7 +103,8 @@ func InvokeHandler(w http.ResponseWriter, r *http.Request, sandbox Sandbox, bs i
 	memorySize := GetenvWithDefault("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "3008")
 
 	if !initDone {
-
+		log.Infof("Initializing runtime: %s, handler: %s",
+			os.Getenv("AWS_LAMBDA_FUNCTION_RUNTIME"), os.Getenv("AWS_LAMBDA_FUNCTION_HANDLER"))
 		initStart, initEnd := InitHandler(sandbox, functionVersion, timeout, bs)
 
 		// Calculate InitDuration
@@ -234,9 +235,16 @@ func InitHandler(sandbox Sandbox, functionVersion string, timeout int64, bs inte
 	}
 
 	initStart := time.Now()
+
+	// Log bootstrap info for debugging
+	handler := GetenvWithDefault("AWS_LAMBDA_FUNCTION_HANDLER", os.Getenv("_HANDLER"))
+	runtime := os.Getenv("AWS_LAMBDA_FUNCTION_RUNTIME")
+	pythonpath := os.Getenv("PYTHONPATH")
+	log.Infof("InitHandler: handler=%s, runtime=%s, pythonpath=%s", handler, runtime, pythonpath)
+
 	// pass to rapid
 	sandbox.Init(&interop.Init{
-		Handler:           GetenvWithDefault("AWS_LAMBDA_FUNCTION_HANDLER", os.Getenv("_HANDLER")),
+		Handler:           handler,
 		AwsKey:            os.Getenv("AWS_ACCESS_KEY_ID"),
 		AwsSecret:         os.Getenv("AWS_SECRET_ACCESS_KEY"),
 		AwsSession:        os.Getenv("AWS_SESSION_TOKEN"),
