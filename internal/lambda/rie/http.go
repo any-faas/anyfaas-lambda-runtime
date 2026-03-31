@@ -19,8 +19,9 @@ import (
 
 // HandlerRequest represents a request to set/update the handler
 type HandlerRequest struct {
-	Handler string `json:"handler"`
-	Runtime string `json:"runtime,omitempty"`
+	Handler string            `json:"handler"`
+	Runtime string            `json:"runtime,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
 }
 
 // setHandlerResponse represents the response for setting handler
@@ -121,6 +122,12 @@ func startHTTPServer(ipport string, sandbox *rapidcore.SandboxBuilder, bs intero
 		os.Setenv("_HANDLER", req.Handler)
 		os.Setenv("AWS_LAMBDA_FUNCTION_RUNTIME", runtime)
 
+		// Set custom environment variables
+		for k, v := range req.Env {
+			os.Setenv(k, v)
+			log.Infof("Set custom env var: %s=%s", k, v)
+		}
+
 		// Set PYTHONPATH for Python runtimes (needed for the wrapper to find the Lambda runtime)
 		// All libraries are now in site-packages following standard structure
 		if runtime == "python3.10" {
@@ -183,16 +190,38 @@ func (b *dynamicBootstrap) Env(e *env.Environment) map[string]string {
 	runtime := os.Getenv("AWS_LAMBDA_FUNCTION_RUNTIME")
 	fmt.Printf("DEBUG dynamicBootstrap.Env: runtime from env = %s\n", runtime)
 	log.Infof("dynamicBootstrap.Env: runtime=%s", runtime)
+
+	// System-reserved env var prefixes that should not be overridden by user
+	reservedPrefixes := []string{
+		"AWS_LAMBDA_",
+		"LAMBDA_",
+		"AWS_EXECUTION_ENV",
+		"AWS_ACCESS_KEY",
+		"AWS_SECRET_KEY",
+		"AWS_SESSION_TOKEN",
+	}
+
+	// Check if a key is a user-defined env var (not system-reserved)
+	isUserEnv := func(key string) bool {
+		for _, prefix := range reservedPrefixes {
+			if strings.HasPrefix(key, prefix) {
+				return false
+			}
+		}
+		return true
+	}
+
 	if runtime != "" {
 		for _, env := range os.Environ() {
 			parts := strings.SplitN(env, "=", 2)
 			if len(parts) == 2 {
 				key := parts[0]
-				// Add Python-related env vars
+				// Add Python-related env vars and custom user env vars
 				if strings.HasPrefix(key, "PYTHON") ||
 				   key == "AWS_EXECUTION_ENV" ||
 				   key == "AWS_LAMBDA_FUNCTION_RUNTIME" ||
-				   key == "AWS_LAMBDA_FUNCTION_HANDLER" {
+				   key == "AWS_LAMBDA_FUNCTION_HANDLER" ||
+				   isUserEnv(key) {
 					envVars[key] = parts[1]
 					log.Infof("dynamicBootstrap.Env: adding %s=%s", key, parts[1])
 				}
