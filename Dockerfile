@@ -95,17 +95,17 @@ RUN chmod +x /var/runtime/aws-lambda-rie
 RUN mv /var/runtime/bootstrap /var/runtime/bootstrap.orig || true
 
 RUN printf '#!/bin/bash\n\
-RUNTIME="${AWS_LAMBDA_FUNCTION_RUNTIME:-python3.12}"\n\
+RUNTIME="${AWS_LAMBDA_FUNCTION_RUNTIME}"\n\
 HANDLER="${AWS_LAMBDA_FUNCTION_HANDLER:-index.handler}"\n\
 echo "Bootstrap: runtime=$RUNTIME, handler=$HANDLER"\n\
 case "$RUNTIME" in\n\
-    nodejs20)\n\
+    nodejs20.x)\n\
         export LD_LIBRARY_PATH=/var/lang/nodejs20/lib:$LD_LIBRARY_PATH\n\
         exec /var/runtime/nodejs20/bootstrap "$HANDLER" ;;\n\
-    nodejs22|nodejs)\n\
+    nodejs22.x)\n\
         export LD_LIBRARY_PATH=/var/lang/nodejs22/lib:$LD_LIBRARY_PATH\n\
         exec /var/runtime/nodejs22/bootstrap "$HANDLER" ;;\n\
-    nodejs24)\n\
+    nodejs24.x)\n\
         export LD_LIBRARY_PATH=/var/lang/nodejs24/lib:$LD_LIBRARY_PATH\n\
         exec /var/runtime/nodejs24/bootstrap "$HANDLER" ;;\n\
     python3.10)\n\
@@ -120,7 +120,7 @@ case "$RUNTIME" in\n\
         export PYTHONPATH=/var/lang/python3.11/lib/python3.11/site-packages:/var/task\n\
         export LD_LIBRARY_PATH=/var/lang/python3.11/lib:$LD_LIBRARY_PATH\n\
         exec /var/lang/python3.11/bin/python3.11 /var/runtime/python3.11-bootstrap.py "$@" ;;\n\
-    python3.12|python3)\n\
+    python3.12)\n\
         export AWS_EXECUTION_ENV=AWS_Lambda_python3.12\n\
         export PYTHONPATH=/var/lang/lib/python3.12/site-packages:/var/task\n\
         exec /var/lang/bin/python3.12 /var/runtime/python3.12-bootstrap.py "$@" ;;\n\
@@ -137,7 +137,8 @@ case "$RUNTIME" in\n\
         export LD_LIBRARY_PATH=/var/lang/python3.14/lib:$LD_LIBRARY_PATH\n\
         exec /var/lang/python3.14/bin/python3.14 /var/runtime/python3.14-bootstrap.py "$@" ;;\n\
     *)\n\
-        exec /var/runtime/bootstrap.orig "$HANDLER" ;;\nesac' > /var/runtime/bootstrap && chmod +x /var/runtime/bootstrap
+        echo "Error: Unsupported runtime: $RUNTIME"\n\
+        exit 1 ;;\nesac' > /var/runtime/bootstrap && chmod +x /var/runtime/bootstrap
 
 # ===========================================
 # Copy entrypoint

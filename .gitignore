@@ -7,3 +7,5 @@ tags
 .idea
 .DS_Store
 .venv
+.env.sh
+.playwright-cli/

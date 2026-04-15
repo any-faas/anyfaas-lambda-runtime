@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -30,20 +31,32 @@ type setHandlerResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+// supportedRuntimes is the list of runtime values supported by the setHandler API
+// These match the official AWS Lambda runtime identifiers
+var supportedRuntimes = []string{
+	"nodejs20.x", "nodejs22.x", "nodejs24.x",
+	"python3.10", "python3.11", "python3.12", "python3.13", "python3.14",
+}
+
+// isValidRuntime checks if the runtime value is supported
+func isValidRuntime(runtime string) bool {
+	return slices.Contains(supportedRuntimes, runtime)
+}
+
 // getBootstrapCmd returns the bootstrap command based on the runtime
 func getBootstrapCmd(runtime string) []string {
 	switch runtime {
-	case "nodejs20":
+	case "nodejs20.x":
 		return []string{"/var/runtime/nodejs20/bootstrap"}
-	case "nodejs22", "nodejs", "":
+	case "nodejs22.x", "":
 		return []string{"/var/runtime/bootstrap"}
-	case "nodejs24":
+	case "nodejs24.x":
 		return []string{"/var/runtime/nodejs24/bootstrap"}
 	case "python3.10":
 		return []string{"/var/lang/bin/python3.10", "/var/runtime/python3.10-bootstrap.py"}
 	case "python3.11":
 		return []string{"/var/lang/bin/python3.11", "/var/runtime/python3.11-bootstrap.py"}
-	case "python3.12", "python3":
+	case "python3.12":
 		return []string{"/var/lang/bin/python3.12", "/var/runtime/python3.12-bootstrap.py"}
 	case "python3.13":
 		return []string{"/var/lang/bin/python3.13", "/var/runtime/python3.13-bootstrap.py"}
@@ -110,9 +123,17 @@ func startHTTPServer(ipport string, sandbox *rapidcore.SandboxBuilder, bs intero
 		runtime := req.Runtime
 		if runtime == "" {
 			runtime = os.Getenv("AWS_LAMBDA_FUNCTION_RUNTIME")
-			if runtime == "" {
-				runtime = "nodejs22"
-			}
+		}
+
+		// Validate the runtime
+		if !isValidRuntime(runtime) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(setHandlerResponse{
+				Success: false,
+				Message: fmt.Sprintf("Unsupported runtime: %s. Supported runtimes: %v", runtime, supportedRuntimes),
+			})
+			return
 		}
 
 		// Set the handler in environment variable for next invocation
@@ -130,20 +151,20 @@ func startHTTPServer(ipport string, sandbox *rapidcore.SandboxBuilder, bs intero
 
 		// Set PYTHONPATH for Python runtimes (needed for the wrapper to find the Lambda runtime)
 		// All libraries are now in site-packages following standard structure
-		if runtime == "python3.10" {
+		switch runtime {
+		case "python3.10":
 			os.Setenv("PYTHONPATH", "/var/lang/python3.10/lib/python3.10/site-packages:/var/task")
 			os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_python3.10")
-		} else if runtime == "python3.11" {
+		case "python3.11":
 			os.Setenv("PYTHONPATH", "/var/lang/python3.11/lib/python3.11/site-packages:/var/task")
 			os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_python3.11")
-		} else if runtime == "python3.12" || runtime == "python3" {
-			// Python 3.12 base image uses /var/lang/lib/python3.12
+		case "python3.12":
 			os.Setenv("PYTHONPATH", "/var/lang/lib/python3.12/site-packages:/var/task")
 			os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_python3.12")
-		} else if runtime == "python3.13" {
+		case "python3.13":
 			os.Setenv("PYTHONPATH", "/var/lang/python3.13/lib/python3.13/site-packages:/var/task")
 			os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_python3.13")
-		} else if runtime == "python3.14" {
+		case "python3.14":
 			os.Setenv("PYTHONPATH", "/var/lang/python3.14/lib/python3.14/site-packages:/var/task")
 			os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_python3.14")
 		}
